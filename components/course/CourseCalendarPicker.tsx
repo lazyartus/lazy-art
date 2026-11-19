@@ -151,12 +151,8 @@ export default function CourseCalendarPicker({
           const isFull =
             !!matchedSchedule && matchedSchedule.remaining <= 0;
 
-          // 要可以點：這天本來就開放、沒過期、而且資料庫裡真的有這梯次、還沒額滿
-          const isSelectable =
-            isAllowedDay &&
-            !isPast &&
-            !!matchedSchedule &&
-            !isFull;
+          // 只看星期幾、沒過期；如果剛好有對應梯次但已額滿，仍不能點
+          const isSelectable = isAllowedDay && !isPast && !isFull;
 
           const isSelected =
             selectedDate !== null && isSameDate(date, selectedDate);
@@ -198,13 +194,11 @@ export default function CourseCalendarPicker({
 
       {/* 選取後顯示 */}
       {selectedDate && (() => {
-        const matchedSchedule = scheduleByDate.get(
-          formatDateParam(selectedDate)
-        );
-
-        if (!matchedSchedule) {
-          return null;
-        }
+        // 優先用這天真正對應的梯次；找不到的話，退回用這堂課第一筆可用梯次
+        // （/schedule 頁面只是入口，實際上課日期會在報名頁裡再選一次）
+        const matchedSchedule =
+          scheduleByDate.get(formatDateParam(selectedDate)) ??
+          schedules[0];
 
         return (
           <div className="mt-8 flex flex-col items-start gap-4 rounded-2xl bg-[#FAF8F5] p-6 sm:flex-row sm:items-center sm:justify-between">
@@ -218,12 +212,18 @@ export default function CourseCalendarPicker({
               </span>
             </p>
 
-            <Link
-              href={`/schedule?schedule=${matchedSchedule.id}`}
-              className="inline-flex items-center rounded-full bg-[#8B1E2D] px-8 py-3 font-semibold text-white transition hover:bg-[#6f1724]"
-            >
-              立即報名 →
-            </Link>
+            {matchedSchedule ? (
+              <Link
+                href={`/schedule?schedule=${matchedSchedule.id}`}
+                className="inline-flex items-center rounded-full bg-[#8B1E2D] px-8 py-3 font-semibold text-white transition hover:bg-[#6f1724]"
+              >
+                立即報名 →
+              </Link>
+            ) : (
+              <p className="text-sm font-semibold text-red-500">
+                目前尚未開放報名，請直接聯繫我們
+              </p>
+            )}
           </div>
         );
       })()}
