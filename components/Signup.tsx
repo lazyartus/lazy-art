@@ -137,6 +137,14 @@ if (error || !data) {
     setCourseTitle(schedule.courses.title);
     // 如果是水彩課，把同一門課的所有可報名日期一起抓進來
 if (schedule.courses.cover_title === "watercolor") {
+  // 台北時區的今天，過去的日期不要列出來
+  const todayInTaipei = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
   const { data: watercolorData, error: watercolorError } =
     await supabase
       .from("course_schedules")
@@ -150,6 +158,7 @@ if (schedule.courses.cover_title === "watercolor") {
       `)
       .eq("course_id", schedule.course_id)
       .eq("active", true)
+      .gte("class_date", todayInTaipei)
       .order("class_date", { ascending: true });
 
   if (watercolorError) {
