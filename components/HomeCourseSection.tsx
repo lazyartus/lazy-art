@@ -182,9 +182,9 @@ export default async function HomeCourseSection() {
                     </h3>
 
                     {/* =========================
-                        暑末水彩漫漫照片輪播
+                        水彩課照片輪播（用 slug 判斷，改標題也不會消失）
                     ========================= */}
-                    {course.title === "水彩漫漫" && (
+                    {course.slug === "watercolor" && (
                       <WatercolorCarousel />
                     )}
 
