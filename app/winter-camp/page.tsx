@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     報名連結：拿到報名表單網址後貼在這裡
     （空字串時，按鈕會改成顯示聯絡電話）
 ========================= */
-const SIGNUP_URL = "";
+const SIGNUP_URL = "https://forms.gle/UFuPXqx9SmP7qz6v6";
 
 const PRICES = [
   { name: "三日班", dates: "1/21–1/23", early: 5980, regular: 6600 },
