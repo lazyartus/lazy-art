@@ -1,7 +1,6 @@
 import Navbar from "@/components/Navbar";
 import HeroBanner from "@/components/HeroBanner";
 import WinterCampBanner from "@/components/WinterCampBanner";
-import HomeAbout from "@/components/HomeAbout";
 import HomeCourseSection from "@/components/HomeCourseSection";
 import Footer from "@/components/Footer";
 
@@ -16,13 +15,6 @@ export default function Home() {
         {/* 冬令營橫幅 */}
         <div className="bg-[#FAF8F5]">
           <WinterCampBanner />
-        </div>
-
-        <HomeAbout />
-
-        {/* 分隔線 */}
-        <div className="bg-[#FAF8F5] pt-16">
-          <div className="mx-auto max-w-3xl border-t border-[#E7E0D8]" />
         </div>
 
         <HomeCourseSection />
