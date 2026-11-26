@@ -26,6 +26,7 @@ type Course = {
   target_age: string | null;
   notice: string | null;
   cover_title: string | null;
+  slug: string | null;
 };
 type CoursePlan = {
   id: string;
@@ -88,6 +89,17 @@ const [selectedScheduleIds, setSelectedScheduleIds] =
   const [courseInfo, setCourseInfo] =
     useState<Course | null>(null);
 
+  // 海洋黏土課：固定最多選 6 個日期；水彩課：依方案堂數
+  const CLAY_MAX_DATES = 6;
+  const isClay = courseInfo?.slug === "clay";
+  const maxDates = isClay
+    ? CLAY_MAX_DATES
+    : selectedPlan?.class_count ?? 0;
+  const showDatePicker =
+    ((courseInfo?.cover_title === "watercolor" && !!selectedPlan) ||
+      isClay) &&
+    watercolorSchedules.length > 0;
+
   useEffect(() => {
     if (selectedSchedule) {
       loadSchedule();
@@ -118,7 +130,8 @@ const [selectedScheduleIds, setSelectedScheduleIds] =
   materials,
   target_age,
   notice,
-  cover_title
+  cover_title,
+  slug
 )
       `)
       .eq("id", selectedSchedule)
@@ -135,8 +148,11 @@ if (error || !data) {
     setCourseId(schedule.course_id);
 
     setCourseTitle(schedule.courses.title);
-    // 如果是水彩課，把同一門課的所有可報名日期一起抓進來
-if (schedule.courses.cover_title === "watercolor") {
+    // 如果是水彩課或海洋黏土課，把同一門課的所有可報名日期一起抓進來
+if (
+  schedule.courses.cover_title === "watercolor" ||
+  schedule.courses.slug === "clay"
+) {
   // 台北時區的今天，過去的日期不要列出來
   const todayInTaipei = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Taipei",
@@ -221,7 +237,63 @@ if (!parentName || !email || !phone || !lineId || !childName) {
   return;
 }
 
+    // 有「選擇上課日期」時：以選的日期為準（可多堂）
+    const usingPicker = showDatePicker;
+    if (usingPicker) {
+      if (selectedScheduleIds.length === 0) {
+        alert("請先選擇上課日期");
+        return;
+      }
+      if (
+        !isClay &&
+        selectedScheduleIds.length !== maxDates
+      ) {
+        alert(`此方案需選擇 ${maxDates} 堂課，目前選了 ${selectedScheduleIds.length} 堂`);
+        return;
+      }
+    }
+
     setLoading(true);
+
+    let pickedSchedules: WatercolorSchedule[] = [];
+    if (usingPicker) {
+      const { data: pickedData, error: pickedError } =
+        await supabase
+          .from("course_schedules")
+          .select("*")
+          .in("id", selectedScheduleIds)
+          .order("class_date", { ascending: true });
+
+      if (
+        pickedError ||
+        !pickedData ||
+        pickedData.length !== selectedScheduleIds.length
+      ) {
+        setLoading(false);
+        alert("找不到所選的上課日期，請重新整理後再試");
+        return;
+      }
+
+      const fullOne = pickedData.find(
+        (s: WatercolorSchedule) => s.remaining <= 0
+      );
+      if (fullOne) {
+        setLoading(false);
+        alert(`❌ ${fullOne.class_date} 已額滿，請改選其他日期`);
+        return;
+      }
+      pickedSchedules = pickedData as WatercolorSchedule[];
+    }
+
+    const pickedDatesText = pickedSchedules
+      .map((s) => s.class_date.slice(5).replace("-", "/"))
+      .join("、");
+    const finalScheduleTitle = usingPicker
+      ? `${scheduleTitle}（上課日期：${pickedDatesText}）`
+      : scheduleTitle;
+    const finalScheduleId = usingPicker
+      ? pickedSchedules[0].id
+      : selectedSchedule;
 
     const { data: latestSchedule, error: latestError } =
       await supabase
@@ -247,9 +319,9 @@ if (!parentName || !email || !phone || !lineId || !childName) {
       .insert([
         {
           course_id: courseId,
-          schedule_id: selectedSchedule,
+          schedule_id: finalScheduleId,
 
-          schedule: scheduleTitle,
+          schedule: finalScheduleTitle,
 
           parent_name: parentName,
 email,
@@ -289,7 +361,7 @@ try {
       lineId,
       childName,
       note,
-      scheduleTitle,
+      scheduleTitle: finalScheduleTitle,
       scheduleTime,
       price,
       totalPrice,
@@ -302,17 +374,38 @@ try {
 } catch (err) {
   console.error("寄信失敗：", err);
 }
-const { data: updateData, error: updateError } = await supabase
-  .from("course_schedules")
-  .update({
-    remaining: latestSchedule.remaining - 1,
-  })
-  .eq("id", selectedSchedule)
-  .select();
+if (usingPicker) {
+  // 每個選到的日期各扣 1 個名額
+  for (const s of pickedSchedules) {
+    const { error: pickedUpdateError } = await supabase
+      .from("course_schedules")
+      .update({ remaining: Math.max(s.remaining - 1, 0) })
+      .eq("id", s.id);
+    if (pickedUpdateError) {
+      console.error("扣名額失敗：", s.id, pickedUpdateError);
+    }
+  }
+  setWatercolorSchedules((prev) =>
+    prev.map((w) =>
+      selectedScheduleIds.includes(w.id)
+        ? { ...w, remaining: Math.max(w.remaining - 1, 0) }
+        : w
+    )
+  );
+  setSelectedScheduleIds([]);
+} else {
+  const { data: updateData, error: updateError } = await supabase
+    .from("course_schedules")
+    .update({
+      remaining: latestSchedule.remaining - 1,
+    })
+    .eq("id", selectedSchedule)
+    .select();
 
-console.log("updateData =", updateData);
-console.log("updateError =", updateError);
-    setRemaining((prev) => Math.max(prev - 1, 0));
+  console.log("updateData =", updateData);
+  console.log("updateError =", updateError);
+  setRemaining((prev) => Math.max(prev - 1, 0));
+}
 
     setLoading(false);
 
@@ -324,7 +417,7 @@ const successMessage =
 ${courseTitle}
 
 梯次：
-${scheduleTitle}
+${finalScheduleTitle}
 
 時間：
 ${scheduleTime}
@@ -348,7 +441,7 @@ NT$${totalPrice}
 ${courseTitle}
 
 梯次：
-${scheduleTitle}
+${finalScheduleTitle}
 
 時間：
 ${scheduleTime}
@@ -447,16 +540,16 @@ alert(successMessage);
 </p>
     </div>
   )}
-  {courseInfo?.cover_title === "watercolor" &&
-  selectedPlan &&
-  watercolorSchedules.length > 0 && (
+  {showDatePicker && (
     <div className="rounded-[28px] border border-[#EFE5DE] bg-[#FAF7F2] p-8">
       <h3 className="text-2xl font-black text-[#8B1E2D]">
         選擇上課日期
       </h3>
 
       <p className="mt-2 text-slate-500">
-        此方案請選擇 {selectedPlan.class_count} 堂課
+        {isClay
+          ? `請選擇上課日期，最多 ${maxDates} 堂`
+          : `此方案請選擇 ${maxDates} 堂課`}
       </p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -465,7 +558,7 @@ alert(successMessage);
           const isFull = schedule.remaining <= 0;
 
           const maxSelected =
-            selectedScheduleIds.length >= selectedPlan.class_count;
+            selectedScheduleIds.length >= maxDates;
 
           const disabled =
             isFull || (!selected && maxSelected);
@@ -497,9 +590,7 @@ alert(successMessage);
                     );
                   }
 
-                  if (
-                    prev.length >= selectedPlan.class_count
-                  ) {
+                  if (prev.length >= maxDates) {
                     return prev;
                   }
 
@@ -551,7 +642,7 @@ alert(successMessage);
 
       <p className="mt-5 font-semibold text-[#8B1E2D]">
         已選 {selectedScheduleIds.length} /{" "}
-        {selectedPlan.class_count} 堂
+        {maxDates} 堂
       </p>
     </div>
   )}
