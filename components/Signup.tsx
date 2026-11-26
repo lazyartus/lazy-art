@@ -244,10 +244,7 @@ if (!parentName || !email || !phone || !lineId || !childName) {
         alert("請先選擇上課日期");
         return;
       }
-      if (
-        !isClay &&
-        selectedScheduleIds.length !== maxDates
-      ) {
+      if (selectedScheduleIds.length !== maxDates) {
         alert(`此方案需選擇 ${maxDates} 堂課，目前選了 ${selectedScheduleIds.length} 堂`);
         return;
       }
@@ -548,7 +545,7 @@ alert(successMessage);
 
       <p className="mt-2 text-slate-500">
         {isClay
-          ? `請選擇上課日期，最多 ${maxDates} 堂`
+          ? `此系列課共 ${maxDates} 堂，請選擇 ${maxDates} 個上課日期`
           : `此方案請選擇 ${maxDates} 堂課`}
       </p>
 
